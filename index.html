@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clothing Image Classifier</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>%F0%9F%91%95</text></svg>">
+  <style>
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      margin: 24px;
+      color: #111;
+      background: #fff;
+    }
+    h1 { font-size: 2rem; margin: 0 0 16px; }
+    [hidden] { display: none !important; }
+    .previews { display: flex; gap: 16px; align-items: flex-start; margin: 12px 0; }
+    .previews figure { margin: 0; }
+    .previews figcaption { font-size: 0.85rem; color: #555; }
+    canvas, #source {
+      border: 2px solid #000;
+      display: block;
+      width: 196px;
+      height: 196px;
+      object-fit: contain;
+      background: #eee;
+      image-rendering: pixelated;
+    }
+    .controls { margin: 12px 0; }
+    button, label { font: inherit; }
+    button { padding: 4px 12px; margin-right: 8px; cursor: pointer; }
+    #result { font-size: 2rem; font-weight: bold; min-height: 2.4rem; }
+    #confidence { color: #555; font-size: 1rem; }
+    #status { color: #a00; font-size: 0.9rem; }
+    table { border-collapse: collapse; margin-top: 12px; font-size: 0.9rem; }
+    td { padding: 2px 10px 2px 0; }
+    .bar { display: inline-block; height: 10px; background: #000; vertical-align: middle; }
+  </style>
+</head>
+<body>
+  <h1>Clothing Image Classifier</h1>
+
+  <div class="controls">
+    <input type="file" id="file" accept="image/*">
+  </div>
+
+  <div class="previews" id="previews" hidden>
+    <figure>
+      <img id="source" alt="uploaded image">
+      <figcaption>Uploaded</figcaption>
+    </figure>
+    <figure>
+      <canvas id="processed" width="28" height="28"></canvas>
+      <figcaption>What the model sees (28&times;28)</figcaption>
+    </figure>
+  </div>
+
+  <div class="controls">
+    <label><input type="checkbox" id="invert" checked> Invert colors (dark garment on light background)</label>
+  </div>
+
+  <div class="controls">
+    <button id="predict">Predict</button>
+  </div>
+
+  <div id="result"></div>
+  <div id="confidence"></div>
+  <div id="status">Loading model…</div>
+  <table id="scores"></table>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script>
+    // Fashion-MNIST class order (info.features["label"].names).
+    const CLASS_NAMES = [
+      "T-shirt/top", "Trouser", "Pullover", "Dress", "Coat",
+      "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot",
+    ];
+
+    const fileInput = document.getElementById("file");
+    const previews = document.getElementById("previews");
+    const sourceImg = document.getElementById("source");
+    const processed = document.getElementById("processed");
+    const pctx = processed.getContext("2d", { willReadFrequently: true });
+    const invertEl = document.getElementById("invert");
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const confidenceEl = document.getElementById("confidence");
+    const scoresEl = document.getElementById("scores");
+
+    let model = null;
+    tf.loadLayersModel("tfjs_model/model.json").then((m) => {
+      model = m;
+      statusEl.textContent = "";
+    }).catch((err) => {
+      statusEl.textContent = "Could not load the model: " + err.message;
+    });
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      previews.hidden = false;
+      sourceImg.src = URL.createObjectURL(file);
+      resultEl.textContent = "";
+      confidenceEl.textContent = "";
+      scoresEl.innerHTML = "";
+    });
+
+    sourceImg.addEventListener("load", drawProcessed);
+    invertEl.addEventListener("change", drawProcessed);
+
+    // Downscale the uploaded image to 28x28 and draw the grayscale (optionally
+    // inverted) version the model will receive.
+    function drawProcessed() {
+      if (!sourceImg.src) return;
+      // White fill so transparent PNG areas behave like a normal photo background.
+      pctx.fillStyle = "#fff";
+      pctx.fillRect(0, 0, 28, 28);
+      pctx.drawImage(sourceImg, 0, 0, 28, 28);
+      const img = pctx.getImageData(0, 0, 28, 28);
+      const d = img.data;
+      for (let i = 0; i < 28 * 28; i++) {
+        let gray = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3;
+        if (invertEl.checked) gray = 255 - gray;
+        d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = gray;
+        d[i * 4 + 3] = 255;
+      }
+      pctx.putImageData(img, 0, 0);
+    }
+
+    document.getElementById("predict").addEventListener("click", () => {
+      if (!model) { statusEl.textContent = "The model is not ready yet."; return; }
+      if (!sourceImg.src) { statusEl.textContent = "Upload an image first."; return; }
+
+      // Read the already-processed 28x28 preview and scale to 0-1.
+      const d = pctx.getImageData(0, 0, 28, 28).data;
+      const input = new Float32Array(28 * 28);
+      for (let i = 0; i < 28 * 28; i++) input[i] = d[i * 4] / 255;
+
+      const probs = tf.tidy(() => {
+        const x = tf.tensor(input, [1, 28, 28, 1]);
+        return model.predict(x).dataSync();
+      });
+
+      let best = 0;
+      for (let i = 1; i < probs.length; i++) {
+        if (probs[i] > probs[best]) best = i;
+      }
+
+      resultEl.textContent = CLASS_NAMES[best];
+      confidenceEl.textContent = (probs[best] * 100).toFixed(1) + "% confidence";
+      statusEl.textContent = "";
+
+      scoresEl.innerHTML = CLASS_NAMES.map((name, i) =>
+        `<tr><td>${name}</td><td>${(probs[i] * 100).toFixed(1)}%</td>` +
+        `<td><span class="bar" style="width:${(probs[i] * 120).toFixed(0)}px"></span></td></tr>`
+      ).join("");
+    });
+  </script>
+</body>
+</html>

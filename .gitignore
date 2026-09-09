@@ -1,0 +1,28 @@
+# Virtual environment
+.venv*/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# TensorFlow Datasets (re-downloaded automatically by tfds.load)
+data/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Environment variables
+.env
+
+# Build/distribution
+build/
+dist/
+*.egg-info/

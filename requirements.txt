@@ -1,0 +1,5 @@
+tensorflow==2.19.0
+tensorflow-datasets==4.9.10
+tensorflow-metadata==1.17.1
+matplotlib==3.10.9
+tf-keras==2.19.0
