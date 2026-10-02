@@ -18,6 +18,7 @@ optionally, converted to a format that
 | `main.py` | Loads the data, trains the network, and exports `exported_model.h5` |
 | `convert.sh` | Converts `exported_model.h5` to a TensorFlow.js model in `tfjs_model/` |
 | `index.html` | Browser demo: upload a clothing image and let the model classify it |
+| `samples/` | One real Fashion-MNIST test image per class, for trying `index.html` without a real photo |
 | `requirements.txt` | Dependencies for **training** (TensorFlow 2.19) |
 | `requirements-tfjs.txt` | Dependencies for **converting** the model to TensorFlow.js — installed in a separate venv |
 | `data/` | Dataset downloaded by `tfds.load` (git-ignored, regenerated automatically) |
@@ -82,6 +83,10 @@ is downscaled to 28x28 grayscale. Keep **Invert colors** checked for a normal ph
 (light garment on a dark background); the "What the model sees" preview shows the
 result. Accuracy on real photos is limited — the model was trained on Fashion-MNIST,
 not arbitrary images.
+
+To try it without a real photo, upload one of the images in `samples/` (one per
+class) and **uncheck** "Invert colors" — they're already stored the way
+Fashion-MNIST expects.
 
 ## Notes
 
